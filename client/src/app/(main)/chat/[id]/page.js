@@ -162,7 +162,24 @@ export default function ChatPage() {
     }
     prevLenRef.current = messages.length;
   }, [messages]);
-
+  /* ── حفظ موقعیت پایین هنگام باز/بسته شدن کیبورد موبایل ── */
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    let t;
+    const onResize = () => {
+      clearTimeout(t);
+      t = setTimeout(() => {
+        const el = scrollRef.current;
+        if (el && stickBottomRef.current) el.scrollTop = el.scrollHeight;
+      }, 120);
+    };
+    vv.addEventListener("resize", onResize);
+    return () => {
+      clearTimeout(t);
+      vv.removeEventListener("resize", onResize);
+    };
+  }, []);
   /* ── ثبت «خوانده شدن» پیام‌های طرف مقابل ── */
   useEffect(() => {
     if (!conv || loading || !socket) return;

@@ -2,6 +2,7 @@ import { Vazirmatn } from "next/font/google";
 import "./globals.css";
 import ThemeProvider from "@/components/ThemeProvider";
 import AuthProvider from "@/context/AuthContext";
+import ViewportFix from "@/components/ViewportFix";
 import SocketProvider from "@/context/SocketContext";
 import PwaRegister from "@/components/PwaRegister";
 const vazirmatn = Vazirmatn({
@@ -19,6 +20,7 @@ export const metadata = {
 };
 
 export const viewport = {
+  interactiveWidget: "resizes-content",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#ffffff" },
     { media: "(prefers-color-scheme: dark)", color: "#030712" },
@@ -42,6 +44,7 @@ export default function RootLayout({ children }) {
           </AuthProvider>
         </ThemeProvider>
         <PwaRegister />
+        <ViewportFix />
       </body>
     </html>
   );

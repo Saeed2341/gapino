@@ -35,6 +35,12 @@ export default function ChatInput({
     onImageFile?.(file);
   };
 
+  // ارسال با حفظ فوکوس: کیبورد موبایل بسته نشود
+  const handleSendClick = () => {
+    ref.current?.focus(); // همگام و داخل رویداد کاربر → کیبورد باز می‌ماند
+    onSend();
+  };
+
   return (
     <div className="border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-950">
       {/* بنر پاسخ / ویرایش */}
@@ -58,6 +64,7 @@ export default function ChatInput({
             </div>
           </div>
           <button
+            onPointerDown={(e) => e.preventDefault()}
             onClick={banner.onCancel}
             className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-150"
             aria-label="لغو"
@@ -97,7 +104,9 @@ export default function ChatInput({
           className="flex-1 resize-none rounded-2xl bg-gray-100 dark:bg-gray-800 px-4 py-2.5 text-sm text-gray-800 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 max-h-[120px] transition duration-150"
         />
         <button
-          onClick={onSend}
+          onPointerDown={(e) => e.preventDefault()} // ← جلوگیری از قاپیدن فوکوس توسط دکمه
+          onMouseDown={(e) => e.preventDefault()} // ← پشتیبانی مرورگرهای قدیمی
+          onClick={handleSendClick}
           disabled={sending || !value.trim()}
           className="w-11 h-11 shrink-0 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-md transition-colors duration-150 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-40"
           aria-label="ارسال"

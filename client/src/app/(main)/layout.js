@@ -29,7 +29,7 @@ export default function MainLayout({ children }) {
   if (!user) return null;
 
   return (
-    <div className="h-dvh flex overflow-hidden">
+    <div className="h-[var(--app-height,100dvh)] flex overflow-hidden">
       <aside
         className={`${
           inChat ? "hidden md:flex" : "flex"
