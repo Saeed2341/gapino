@@ -1,0 +1,32 @@
+export default function Logo({ size = 40 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 64 64"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <defs>
+        <linearGradient
+          id="gapinoMark"
+          x1="9"
+          y1="9"
+          x2="55"
+          y2="53"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop stopColor="#4F46E5" />
+          <stop offset="1" stopColor="#06B6D4" />
+        </linearGradient>
+      </defs>
+      <path
+        d="M32 9C19.3 9 9 18.1 9 29.2c0 6 3 11.4 7.9 15.1L14.6 53c-.4 1.4 1.1 2.5 2.3 1.7l8.9-5.8c2 .5 4 .8 6.2.8 12.7 0 23-9.1 23-20.6S44.7 9 32 9z"
+        stroke="url(#gapinoMark)"
+        strokeWidth="4.5"
+        strokeLinejoin="round"
+      />
+      <circle cx="32" cy="29" r="4" fill="url(#gapinoMark)" />
+    </svg>
+  );
+}

@@ -1,0 +1,50 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* اسکرول‌بار ظریف و مدرن */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 dark:bg-gray-700 rounded-full;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-in-up {
+  animation: fadeInUp 0.2s ease-out both;
+}
+/* فلش هایلایت هنگام پرش به پیامِ پاسخ‌داده‌شده */
+@keyframes msgFlash {
+  0% {
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.6);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);
+  }
+}
+.message-highlight {
+  animation: msgFlash 1.2s ease-out;
+}
+/* پس‌زمینه‌ی الگودار صفحه چت */
+.chat-bg {
+  background-image: url("/chat-bg-light.svg");
+  background-size: 420px 420px;
+  background-repeat: repeat;
+}
+.dark .chat-bg {
+  background-image: url("/chat-bg-dark.svg");
+}
