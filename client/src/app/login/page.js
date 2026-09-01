@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  FiMail,
+  FiSmartphone,
   FiArrowLeft,
   FiAlertCircle,
   FiEdit2,
@@ -16,14 +16,14 @@ import CodeInput from "@/components/CodeInput";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
+// const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_REGEX = /^09\d{9}$/;
 export default function LoginPage() {
   const router = useRouter();
   const { user, loading: authLoading, login } = useAuth();
 
-  const [step, setStep] = useState("email"); // "email" | "code"
-  const [email, setEmail] = useState("");
+  const [step, setStep] = useState("phone"); // "email" | "code"
+  const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [codeKey, setCodeKey] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -44,14 +44,14 @@ export default function LoginPage() {
 
   const sendCode = async (e) => {
     e?.preventDefault?.();
-    if (!EMAIL_REGEX.test(email.trim())) {
-      setError("لطفاً یک ایمیل معتبر وارد کن.");
+    if (!PHONE_REGEX.test(phone.trim())) {
+      setError("لطفاً شماره موبایل معتبر وارد کن (مثل 09123456789)");
       return;
     }
     setError("");
     setLoading(true);
     try {
-      await api.post("/api/auth/request-code", { email: email.trim() });
+      await api.post("/api/auth/request-code", { phone: phone.trim() });
       setStep("code");
       setResendIn(60);
       setCode("");
@@ -69,7 +69,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const data = await api.post("/api/auth/verify-code", {
-        email: email.trim(),
+        phone: phone.trim(),
         code: finalCode,
       });
       login(data);
@@ -88,7 +88,7 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      await api.post("/api/auth/request-code", { email: email.trim() });
+      await api.post("/api/auth/request-code", { phone: phone.trim() });
       setResendIn(60);
       setCode("");
       setCodeKey((k) => k + 1);
@@ -114,9 +114,9 @@ export default function LoginPage() {
               گپینو
             </h1>
             <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-              {step === "email"
-                ? "برای ورود یا ثبت‌نام، ایمیل خود را وارد کن"
-                : "کد ۶ رقمی ارسال‌شده به ایمیلت را وارد کن"}
+              {step === "phone"
+                ? "برای ورود یا ثبت‌نام، شماره همراه خود را وارد کن"
+                : "کد ۶ رقمی ارسال‌شده به شماره همراهت را وارد کن"}
             </p>
           </div>
 
@@ -128,24 +128,25 @@ export default function LoginPage() {
             </div>
           )}
 
-          {step === "email" ? (
+          {step === "phone" ? (
             /* ── مرحله ۱: ایمیل ── */
             <form onSubmit={sendCode} className="space-y-4">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                ایمیل
+                شماره موبایل
               </label>
               <div className="relative">
-                <FiMail
+                <FiSmartphone
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"
                   size={18}
                 />
                 <input
-                  type="email"
+                  type="tel"
                   dir="ltr"
                   autoFocus
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
+                  inputMode="numeric"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="09123456789"
                   className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 py-3 pr-11 pl-4 text-left text-gray-800 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition duration-200"
                 />
               </div>
@@ -170,11 +171,11 @@ export default function LoginPage() {
                   dir="ltr"
                   className="text-sm text-gray-600 dark:text-gray-300"
                 >
-                  {email}
+                  {phone}
                 </span>
                 <button
                   onClick={() => {
-                    setStep("email");
+                    setStep("phone");
                     setError("");
                   }}
                   className="flex items-center gap-1 text-sm font-medium text-indigo-500 hover:text-indigo-600 transition duration-150"

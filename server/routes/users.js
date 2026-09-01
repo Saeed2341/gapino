@@ -3,7 +3,8 @@ const multer = require("multer");
 const { uploadImage, deleteImage } = require("../services/cloudinary");
 const User = require("../models/User");
 const auth = require("../middleware/auth");
-
+const { normalizePhone } = require("../services/sms");
+const PHONE_OK = (p) => /^09\d{9}$/.test(p);
 router.use(auth);
 
 // ── آپلود عکس پروفایل ──
@@ -17,7 +18,7 @@ const avatarUpload = multer({
 });
 
 const USERNAME_REGEX = /^[a-z0-9_]{4,24}$/;
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // ── جستجوی دقیق با ایمیل یا آیدی (برای شروع گفتگو) ──
@@ -26,7 +27,10 @@ router.get("/search", async (req, res) => {
     const q = (req.query.q || "").trim().toLowerCase().replace(/^@+/, "");
     if (!q) return res.json({ users: [] });
 
-    const filter = EMAIL_REGEX.test(q) ? { email: q } : { username: q };
+    const normalized = normalizePhone(q);
+    const filter = PHONE_OK(normalized)
+      ? { phone: normalized }
+      : { username: q };
     const users = await User.find({
       ...filter,
       _id: { $ne: req.userId },
