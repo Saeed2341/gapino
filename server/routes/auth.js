@@ -4,31 +4,31 @@ const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const User = require("../models/User");
 const OtpCode = require("../models/OtpCode");
-const { sendOtpSms, normalizePhone } = require("../services/sms");
+const { sendOtpEmail } = require("../services/mailer");
 const auth = require("../middleware/auth");
 
-const SMS_TEST_MODE = process.env.SMS_TEST_MODE === "true";
-const DEV_UNIVERSAL_CODE = "111111";
-
-const PHONE_REGEX = /^09\d{9}$/;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CODE_REGEX = /^\d{6}$/;
 const CODE_TTL_MINUTES = 5;
 const MAX_ATTEMPTS = 5;
+const TEST_MODE = process.env.EMAIL_TEST_MODE === "true";
 
 const rateMap = new Map();
 
 function otpRateLimit(req, res, next) {
-  const phone = normalizePhone(req.body.phone);
+  const email = (req.body.email || "").toLowerCase().trim();
   const now = Date.now();
-  const entry = rateMap.get(phone);
+  const entry = rateMap.get(email);
   if (!entry || now > entry.resetAt) {
-    rateMap.set(phone, { count: 1, resetAt: now + 10 * 60 * 1000 });
+    rateMap.set(email, { count: 1, resetAt: now + 10 * 60 * 1000 });
     return next();
   }
   if (entry.count >= 3) {
-    return res.status(429).json({
-      message: "درخواست‌های زیادی ارسال شده. کمی بعد دوباره تلاش کن.",
-    });
+    return res
+      .status(429)
+      .json({
+        message: "درخواست‌های زیادی ارسال شده. کمی بعد دوباره تلاش کن.",
+      });
   }
   entry.count++;
   next();
@@ -46,18 +46,18 @@ async function generateUniqueUsername() {
 // ── ۱) درخواست کد ──
 router.post("/request-code", otpRateLimit, async (req, res) => {
   try {
-    const phone = normalizePhone(req.body.phone);
-    if (!PHONE_REGEX.test(phone)) {
-      return res.status(400).json({ message: "شماره موبایل معتبر نیست." });
+    const email = (req.body.email || "").toLowerCase().trim();
+    if (!EMAIL_REGEX.test(email)) {
+      return res.status(400).json({ message: "ایمیل معتبر نیست." });
     }
 
     const code = String(crypto.randomInt(100000, 999999));
     const hashedCode = await bcrypt.hash(code, 10);
 
     await OtpCode.findOneAndUpdate(
-      { phone },
+      { email },
       {
-        phone,
+        email,
         code: hashedCode,
         attempts: 0,
         expiresAt: new Date(Date.now() + CODE_TTL_MINUTES * 60 * 1000),
@@ -65,53 +65,35 @@ router.post("/request-code", otpRateLimit, async (req, res) => {
       { upsert: true },
     );
 
-    await sendOtpSms(phone, code);
-    res.json({ message: "کد تأیید پیامک شد." });
+    await sendOtpEmail(email, code);
+
+    // در حالت تست، کد برای نمایش روی صفحه برگردانده می‌شود
+    if (TEST_MODE) return res.json({ message: "کد ساخته شد.", devCode: code });
+
+    res.json({ message: "کد تأیید به ایمیل ارسال شد." });
   } catch (err) {
     console.error("request-code error:", err);
-    res
-      .status(500)
-      .json({ message: err.message || "خطا در ارسال پیامک. دوباره تلاش کن." });
+    res.status(500).json({ message: "خطا در ارسال ایمیل. دوباره تلاش کن." });
   }
 });
 
 // ── ۲) تأیید کد ──
 router.post("/verify-code", async (req, res) => {
   try {
-    const phone = normalizePhone(req.body.phone);
+    const email = (req.body.email || "").toLowerCase().trim();
     const code = String(req.body.code || "").trim();
 
-    if (!PHONE_REGEX.test(phone) || !CODE_REGEX.test(code)) {
+    if (!EMAIL_REGEX.test(email) || !CODE_REGEX.test(code)) {
       return res
         .status(400)
-        .json({ message: "شماره یا کد وارد شده معتبر نیست." });
+        .json({ message: "ایمیل یا کد وارد شده معتبر نیست." });
     }
-    // ── درگاه توسعه: کد همگانی فقط وقتی SMS_TEST_MODE=true ──
-    if (SMS_TEST_MODE && code === DEV_UNIVERSAL_CODE) {
-      let devUser = await User.findOne({ phone });
-      let isNew = false;
-      if (!devUser) {
-        isNew = true;
-        devUser = await User.create({
-          phone,
-          displayName: "کاربر " + phone.slice(-4),
-          username: await generateUniqueUsername(),
-        });
-      }
-      const devToken = jwt.sign(
-        { id: devUser._id.toString() },
-        process.env.JWT_SECRET,
-        {
-          expiresIn: process.env.JWT_EXPIRES_IN || "7d",
-        },
-      );
-      return res.json({ token: devToken, isNew, user: devUser.toSafeJSON() });
-    }
-    const otpDoc = await OtpCode.findOne({ phone });
+
+    const otpDoc = await OtpCode.findOne({ email });
     if (!otpDoc) {
       return res
         .status(400)
-        .json({ message: "کدی برای این شماره یافت نشد. دوباره درخواست بده." });
+        .json({ message: "کدی برای این ایمیل یافت نشد. دوباره درخواست بده." });
     }
     if (otpDoc.expiresAt < new Date()) {
       await otpDoc.deleteOne();
@@ -138,13 +120,13 @@ router.post("/verify-code", async (req, res) => {
 
     await otpDoc.deleteOne();
 
-    let user = await User.findOne({ phone });
+    let user = await User.findOne({ email });
     let isNew = false;
     if (!user) {
       isNew = true;
       user = await User.create({
-        phone,
-        displayName: "کاربر " + phone.slice(-4),
+        email,
+        displayName: email.split("@")[0],
         username: await generateUniqueUsername(),
       });
     }

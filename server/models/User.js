@@ -2,8 +2,13 @@ const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema(
   {
-    phone: { type: String, required: true, unique: true, index: true }, // 09xxxxxxxxx
-    email: { type: String, default: "", lowercase: true, trim: true },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true,
+    },
     displayName: { type: String, default: "", trim: true, maxlength: 50 },
     username: {
       type: String,
@@ -26,7 +31,6 @@ const userSchema = new mongoose.Schema(
 userSchema.methods.toSafeJSON = function () {
   return {
     id: this._id.toString(),
-    phone: this.phone,
     email: this.email,
     displayName: this.displayName,
     username: this.username,

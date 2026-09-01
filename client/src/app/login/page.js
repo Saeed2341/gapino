@@ -3,12 +3,13 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  FiSmartphone,
+  FiMail,
   FiArrowLeft,
   FiAlertCircle,
   FiEdit2,
   FiRefreshCw,
   FiLoader,
+  FiInfo,
 } from "react-icons/fi";
 import Logo from "@/components/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -16,26 +17,25 @@ import CodeInput from "@/components/CodeInput";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 
-// const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_REGEX = /^09\d{9}$/;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export default function LoginPage() {
   const router = useRouter();
   const { user, loading: authLoading, login } = useAuth();
 
-  const [step, setStep] = useState("phone"); // "email" | "code"
-  const [phone, setPhone] = useState("");
+  const [step, setStep] = useState("email");
+  const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [codeKey, setCodeKey] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [resendIn, setResendIn] = useState(0);
+  const [devCode, setDevCode] = useState(null); // کد تستی برای نمایش
 
-  // اگر از قبل لاگین بود، برو صفحه اصلی
   useEffect(() => {
     if (!authLoading && user) router.replace("/");
   }, [authLoading, user, router]);
 
-  // شمارش معکوس ارسال مجدد
   useEffect(() => {
     if (resendIn <= 0) return;
     const t = setInterval(() => setResendIn((s) => s - 1), 1000);
@@ -44,18 +44,21 @@ export default function LoginPage() {
 
   const sendCode = async (e) => {
     e?.preventDefault?.();
-    if (!PHONE_REGEX.test(phone.trim())) {
-      setError("لطفاً شماره موبایل معتبر وارد کن (مثل 09123456789)");
+    if (!EMAIL_REGEX.test(email.trim())) {
+      setError("لطفاً یک ایمیل معتبر وارد کن.");
       return;
     }
     setError("");
     setLoading(true);
     try {
-      await api.post("/api/auth/request-code", { phone: phone.trim() });
+      const d = await api.post("/api/auth/request-code", {
+        email: email.trim(),
+      });
       setStep("code");
       setResendIn(60);
       setCode("");
       setCodeKey((k) => k + 1);
+      setDevCode(d.devCode || null); // در پروداکشن null می‌ماند
     } catch (err) {
       setError(err.message);
     } finally {
@@ -69,7 +72,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const data = await api.post("/api/auth/verify-code", {
-        phone: phone.trim(),
+        email: email.trim(),
         code: finalCode,
       });
       login(data);
@@ -77,7 +80,7 @@ export default function LoginPage() {
     } catch (err) {
       setError(err.message);
       setCode("");
-      setCodeKey((k) => k + 1); // ریست باکس‌ها + فوکوس خودکار
+      setCodeKey((k) => k + 1);
     } finally {
       setLoading(false);
     }
@@ -88,10 +91,13 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      await api.post("/api/auth/request-code", { phone: phone.trim() });
+      const d = await api.post("/api/auth/request-code", {
+        email: email.trim(),
+      });
       setResendIn(60);
       setCode("");
       setCodeKey((k) => k + 1);
+      setDevCode(d.devCode || null);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -107,20 +113,18 @@ export default function LoginPage() {
 
       <div className="w-full max-w-md animate-fade-in-up">
         <div className="bg-white/90 dark:bg-gray-900/90 backdrop-blur rounded-3xl shadow-xl shadow-indigo-500/5 border border-gray-100 dark:border-gray-800 p-6 sm:p-10">
-          {/* هدر کارت */}
           <div className="flex flex-col items-center text-center mb-8">
             <Logo size={72} />
             <h1 className="mt-4 text-3xl font-extrabold text-gray-900 dark:text-white">
               گپینو
             </h1>
             <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-              {step === "phone"
-                ? "برای ورود یا ثبت‌نام، شماره همراه خود را وارد کن"
-                : "کد ۶ رقمی ارسال‌شده به شماره همراهت را وارد کن"}
+              {step === "email"
+                ? "برای ورود یا ثبت‌نام، ایمیل خود را وارد کن"
+                : "کد ۶ رقمی را وارد کن"}
             </p>
           </div>
 
-          {/* خطا */}
           {error && (
             <div className="mb-5 flex items-center gap-2 rounded-xl bg-red-50 dark:bg-red-950/40 px-4 py-3 text-sm text-red-600 dark:text-red-400">
               <FiAlertCircle className="shrink-0" size={18} />
@@ -128,25 +132,23 @@ export default function LoginPage() {
             </div>
           )}
 
-          {step === "phone" ? (
-            /* ── مرحله ۱: ایمیل ── */
+          {step === "email" ? (
             <form onSubmit={sendCode} className="space-y-4">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                شماره موبایل
+                ایمیل
               </label>
               <div className="relative">
-                <FiSmartphone
+                <FiMail
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"
                   size={18}
                 />
                 <input
-                  type="tel"
+                  type="email"
                   dir="ltr"
                   autoFocus
-                  inputMode="numeric"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="09123456789"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
                   className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 py-3 pr-11 pl-4 text-left text-gray-800 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition duration-200"
                 />
               </div>
@@ -164,19 +166,35 @@ export default function LoginPage() {
               </button>
             </form>
           ) : (
-            /* ── مرحله ۲: کد ── */
             <div className="space-y-5">
+              {/* نمایش کد تستی */}
+              {devCode && (
+                <div className="flex items-center gap-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 px-4 py-3">
+                  <FiInfo className="shrink-0 text-amber-500" size={16} />
+                  <p className="text-xs text-amber-700 dark:text-amber-400">
+                    حالت توسعه — کد ورود:{" "}
+                    <span
+                      className="font-bold text-sm tracking-widest"
+                      dir="ltr"
+                    >
+                      {devCode}
+                    </span>
+                  </p>
+                </div>
+              )}
+
               <div className="flex items-center justify-between rounded-xl bg-gray-50 dark:bg-gray-800 px-4 py-3">
                 <span
                   dir="ltr"
                   className="text-sm text-gray-600 dark:text-gray-300"
                 >
-                  {phone}
+                  {email}
                 </span>
                 <button
                   onClick={() => {
-                    setStep("phone");
+                    setStep("email");
                     setError("");
+                    setDevCode(null);
                   }}
                   className="flex items-center gap-1 text-sm font-medium text-indigo-500 hover:text-indigo-600 transition duration-150"
                 >
