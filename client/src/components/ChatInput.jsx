@@ -80,17 +80,17 @@ export default function ChatInput({
         </div>
       )}
 
-      <div className="flex items-center gap-2 p-3">
+      <div className="flex items-center gap-2 p-2">
         {/* ── ارسال: سمت راست ── */}
         <button
           onPointerDown={(e) => e.preventDefault()}
           onMouseDown={(e) => e.preventDefault()}
           onClick={handleSendClick}
           disabled={!value.trim()}
-          className="w-12 h-12  shrink-0 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-md transition-colors duration-150 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-40"
+          className="w-10 h-10  shrink-0 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-md transition-colors duration-150 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-40"
           aria-label="ارسال"
         >
-          <FiSend size={20} className="-scale-x-100" />
+          <FiSend size={18} />
         </button>
 
         {/* ── ورودی با سنجاق داخل آن ── */}
@@ -105,7 +105,7 @@ export default function ChatInput({
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            className="absolute bottom-2 left-1.5 z-10 w-9 h-9 rounded-full flex items-center justify-center text-gray-400 hover:text-indigo-500 hover:bg-gray-200/70 dark:hover:bg-gray-700 transition-colors duration-150"
+            className="absolute bottom-0.5 left-1.5 z-10 w-9 h-9 rounded-full flex items-center justify-center text-gray-400 hover:text-indigo-500 hover:bg-gray-200/70 dark:hover:bg-gray-700 transition-colors duration-150"
             aria-label="پیوست عکس"
           >
             <FiPaperclip size={19} />
@@ -120,7 +120,7 @@ export default function ChatInput({
             }}
             onKeyDown={handleKeyDown}
             placeholder="پیام خود را بنویسید..."
-            className="w-full resize-none rounded-3xl bg-gray-100 dark:bg-gray-800 py-4 pr-4 pl-12 text-sm text-gray-800 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 max-h-[120px] transition duration-150"
+            className="w-full resize-none rounded-3xl bg-gray-100 dark:bg-gray-800 py-2.5 pr-4 pl-12 text-sm text-gray-800 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 max-h-[120px] transition duration-150"
           />
         </div>
       </div>
