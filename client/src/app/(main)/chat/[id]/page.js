@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   FiArrowRight,
@@ -34,10 +40,21 @@ import Lightbox from "@/components/Lightbox";
 import { uploadFile } from "@/lib/api";
 import GroupInfoModal from "@/components/GroupInfoModal";
 import ChatProfilePanel from "@/components/ChatProfilePanel";
-import { getCachedChat } from "@/lib/chatCache";
 import Dropdown from "@/components/Dropdown";
 import { createPortal } from "react-dom";
 import { useSlideNav } from "@/context/SlideNavContext";
+import {
+  getCachedChat,
+  isCacheFresh,
+  setCachedChat,
+  mergeFetched,
+  mergeOlder,
+  appendCachedMessage,
+  replaceCachedMessage,
+  markDeletedCachedMessage,
+  markSeenCachedMessages,
+  clearCachedMessages,
+} from "@/lib/chatCache";
 function DateChip({ label }) {
   return (
     <div className="flex justify-center py-3">
@@ -98,6 +115,8 @@ export default function ChatPage() {
   const lastTypingEmitRef = useRef(0);
   const hasNewerRef = useRef(false);
   const newerLoadingRef = useRef(false);
+  const activeIdRef = useRef(id);
+  activeIdRef.current = id;
 
   const { startExit } = useSlideNav();
 
@@ -105,7 +124,31 @@ export default function ChatPage() {
     hasNewerRef.current = hasNewer;
   }, [hasNewer]);
 
-  /* ── لود اولیه (با کش: باز شدن فوری) ── */
+  /* ── نوسازی بی‌صدای پس‌زمینه (Stale-While-Revalidate) ── */
+  const revalidate = useCallback(async (convId) => {
+    try {
+      const [msgD, convD] = await Promise.all([
+        api.get(`/api/messages/${convId}?limit=30`),
+        api.get(`/api/conversations/${convId}`),
+      ]);
+      if (activeIdRef.current !== convId) return; // کاربر عوض شده
+      const merged = mergeFetched(convId, msgD);
+      setMessages(merged.messages);
+      setHasMore(merged.hasMore);
+      setConv(convD.conversation);
+      setMuted(!!convD.conversation.muted);
+      setCachedChat(convId, { conv: convD.conversation });
+    } catch {}
+  }, []);
+
+  /* ── همگام‌سازی کش با تغییرات زنده همین چت ── */
+  const syncCache = {
+    append: (msg) => appendCachedMessage(id, msg, user.id),
+    replace: (msg) => replaceCachedMessage(id, msg),
+    delete: (mid) => markDeletedCachedMessage(id, mid),
+    seen: (at) => markSeenCachedMessages(id, user.id, at),
+  };
+
   const loadInitial = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -123,20 +166,21 @@ export default function ChatPage() {
     setSearchQuery("");
     setSearchResults(null);
 
-    // ۱) اگر از سایدبار آمده‌ایم، همه‌چیز همین حالا هست!
+    // ۱) باز شدن فوری از کش — بدون حتی یک درخواست
     const cached = getCachedChat(id);
     if (cached?.conv) {
       setConv(cached.conv);
       setMuted(!!cached.conv.muted);
     }
-    if (cached?.messages) {
+    if (Array.isArray(cached?.messages)) {
       setMessages(cached.messages);
       setHasMore(!!cached.hasMore);
       setLoading(false);
-      return; // پیش‌بارگیری‌شده و تازه — نیازی به fetch نیست
+      if (!isCacheFresh(id, 15000)) revalidate(id); // نوسازی بی‌صدا
+      return;
     }
 
-    // ۲) ورود مستقیم با URL: fetch موازی (نصف زمان قبلی)
+    // ۲) ورود سرد (URL مستقیم): fetch موازی
     try {
       const [convD, msgD] = await Promise.all([
         api.get(`/api/conversations/${id}`),
@@ -144,20 +188,23 @@ export default function ChatPage() {
       ]);
       setConv(convD.conversation);
       setMuted(!!convD.conversation.muted);
-      setMessages(msgD.messages);
-      setHasMore(msgD.hasMore);
+      setCachedChat(id, { conv: convD.conversation });
+      const merged = mergeFetched(id, msgD);
+      setMessages(merged.messages);
+      setHasMore(merged.hasMore);
     } catch (e) {
       setError(e.message);
     }
     setLoading(false);
-  }, [id]);
+  }, [id, revalidate]);
 
   useEffect(() => {
     loadInitial();
   }, [loadInitial]);
 
   /* ── اسکرول اولیه به پایین ── */
-  useEffect(() => {
+  /* ── اسکرول اولیه به پایین (قبل از paint — بدون فلش) ── */
+  useLayoutEffect(() => {
     if (loading || initialScrollRef.current) return;
     const el = scrollRef.current;
     if (el) {
@@ -212,7 +259,7 @@ export default function ChatPage() {
     }
   }, [messages, conv, loading, socket, id, user?.id]);
 
-  /* ── لود پیام‌های قدیمی‌تر ── */
+  /* ── لود پیام‌های قدیمی‌تر (با ذخیره در کش + حفظ موقعیت اسکرول) ── */
   const loadOlder = async () => {
     if (!hasMore || loadingOlder || loading || messages.length === 0) return;
     const el = scrollRef.current;
@@ -223,13 +270,15 @@ export default function ChatPage() {
       const d = await api.get(
         `/api/messages/${id}?limit=30&before=${encodeURIComponent(oldest)}`,
       );
-      setMessages((prev) => [...d.messages, ...prev]);
-      setHasMore(d.hasMore);
+      if (activeIdRef.current !== id) return; // کاربر گفتگو را عوض کرد
+      const merged = mergeOlder(id, d);
+      setMessages(merged.messages);
+      setHasMore(merged.hasMore);
     } catch {}
     setLoadingOlder(false);
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (loadingOlder) return;
     const r = restoreRef.current;
     if (r && scrollRef.current) {
@@ -268,7 +317,7 @@ export default function ChatPage() {
     const el = scrollRef.current;
     if (!el) return;
     const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    stickBottomRef.current = distanceToBottom < 120;
+    stickBottomRef.current = distanceToBottom < 80;
     if (el.scrollTop < 80) loadOlder();
     if (distanceToBottom < 80 && hasNewerRef.current) loadNewer();
   };
@@ -1114,8 +1163,11 @@ export default function ChatPage() {
         className="chat-bg flex-1 overflow-y-auto space-y-1 py-2"
       >
         {loadingOlder && (
-          <div className="flex justify-center py-3">
-            <FiLoader className="animate-spin text-indigo-400" size={20} />
+          <div className="sticky top-0 z-10 h-0 flex justify-center">
+            <span className="mt-2 flex items-center gap-1.5 rounded-full bg-white/90 dark:bg-gray-900/90 shadow-md border border-gray-100 dark:border-gray-800 px-3 py-1 text-[11px] font-bold text-indigo-500">
+              <FiLoader className="animate-spin" size={13} />
+              در حال دریافت پیام‌های قبلی...
+            </span>
           </div>
         )}
         {messages.length === 0 ? (

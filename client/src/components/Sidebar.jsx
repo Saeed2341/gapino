@@ -26,7 +26,13 @@ import { useSocket } from "@/context/SocketContext";
 import { formatListTime } from "@/lib/format";
 import CreateGroupModal from "./CreateGroupModal";
 import Dropdown from "./Dropdown";
-import { setCachedChat, prefetchChat, invalidateChat } from "@/lib/chatCache";
+import {
+  setCachedChat,
+  prefetchChat,
+  appendCachedMessage,
+  clearCachedMessages,
+  removeCachedChat,
+} from "@/lib/chatCache";
 
 /* ── اجزای کوچک ── */
 
@@ -220,6 +226,15 @@ export default function Sidebar() {
   useEffect(() => {
     loadConvs();
   }, [loadConvs]);
+
+  /* ── گرم‌کردن کش: پیش‌بارگیری گفتگوهای بالای لیست ── */
+  useEffect(() => {
+    if (convLoading || tab !== "chats" || convs.length === 0) return;
+    const t = setTimeout(() => {
+      convs.slice(0, 4).forEach((c) => prefetchChat(c.id));
+    }, 800);
+    return () => clearTimeout(t);
+  }, [convs, convLoading, tab]);
   useEffect(() => {
     try {
       const total = convs.reduce((s, c) => s + (c.unread || 0), 0);
@@ -270,7 +285,7 @@ export default function Sidebar() {
       } catch {}
     };
     const onNew = ({ conversationId, message }) => {
-      invalidateChat(conversationId);
+      appendCachedMessage(conversationId, message, meId);
       const isMine = message.sender?.id === meId;
       if (!isMine) notify(conversationId, message);
       const viewing = pathname === `/chat/${conversationId}`;
@@ -346,7 +361,7 @@ export default function Sidebar() {
 
     // پاک شدن تاریخچه
     const onCleared = ({ conversationId }) => {
-      invalidateChat(conversationId);
+      clearCachedMessages(conversationId);
       setConvs((prev) =>
         prev.map((c) =>
           c.id === conversationId
@@ -358,7 +373,7 @@ export default function Sidebar() {
 
     // حذف گفتگو
     const onDeleted = ({ conversationId }) => {
-      invalidateChat(conversationId);
+      removeCachedChat(conversationId);
       setConvs((prev) => prev.filter((c) => c.id !== conversationId));
       if (pathname === `/chat/${conversationId}`) router.push("/");
     };
