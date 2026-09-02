@@ -48,3 +48,74 @@
 .dark .chat-bg {
   background-image: url("/chat-bg-dark.svg");
 }
+
+/* ── انیمیشن‌های مودال، منو و backdrop ── */
+@keyframes modalIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes modalOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes fadeOut {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes ddIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ddOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.99);
+  }
+}
+.animate-modal-in {
+  animation: modalIn 0.2s ease-out both;
+}
+.animate-modal-out {
+  animation: modalOut 0.15s ease-in both;
+}
+.animate-fade-in {
+  animation: fadeIn 0.18s ease-out both;
+}
+.animate-fade-out {
+  animation: fadeOut 0.13s ease-in both;
+}
+.animate-dd-in {
+  animation: ddIn 0.15s ease-out both;
+}
+.animate-dd-out {
+  animation: ddOut 0.13s ease-in both;
+}

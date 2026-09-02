@@ -34,7 +34,10 @@ import Lightbox from "@/components/Lightbox";
 import { uploadFile } from "@/lib/api";
 import GroupInfoModal from "@/components/GroupInfoModal";
 import ChatProfilePanel from "@/components/ChatProfilePanel";
-
+import { getCachedChat } from "@/lib/chatCache";
+import Dropdown from "@/components/Dropdown";
+import { createPortal } from "react-dom";
+import { useSlideNav } from "@/context/SlideNavContext";
 function DateChip({ label }) {
   return (
     <div className="flex justify-center py-3">
@@ -62,7 +65,6 @@ export default function ChatPage() {
   const [hasMore, setHasMore] = useState(false);
   const [hasNewer, setHasNewer] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
-  const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [input, setInput] = useState("");
   const [replyTo, setReplyTo] = useState(null);
@@ -97,11 +99,13 @@ export default function ChatPage() {
   const hasNewerRef = useRef(false);
   const newerLoadingRef = useRef(false);
 
+  const { startExit } = useSlideNav();
+
   useEffect(() => {
     hasNewerRef.current = hasNewer;
   }, [hasNewer]);
 
-  /* ── لود اولیه ── */
+  /* ── لود اولیه (با کش: باز شدن فوری) ── */
   const loadInitial = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -118,17 +122,28 @@ export default function ChatPage() {
     setSearchOpen(false);
     setSearchQuery("");
     setSearchResults(null);
+
+    // ۱) اگر از سایدبار آمده‌ایم، همه‌چیز همین حالا هست!
+    const cached = getCachedChat(id);
+    if (cached?.conv) {
+      setConv(cached.conv);
+      setMuted(!!cached.conv.muted);
+    }
+    if (cached?.messages) {
+      setMessages(cached.messages);
+      setHasMore(!!cached.hasMore);
+      setLoading(false);
+      return; // پیش‌بارگیری‌شده و تازه — نیازی به fetch نیست
+    }
+
+    // ۲) ورود مستقیم با URL: fetch موازی (نصف زمان قبلی)
     try {
-      const convD = await api.get(`/api/conversations/${id}`);
+      const [convD, msgD] = await Promise.all([
+        api.get(`/api/conversations/${id}`),
+        api.get(`/api/messages/${id}?limit=30`),
+      ]);
       setConv(convD.conversation);
       setMuted(!!convD.conversation.muted);
-    } catch (e) {
-      setError(e.message);
-      setLoading(false);
-      return;
-    }
-    try {
-      const msgD = await api.get(`/api/messages/${id}?limit=30`);
       setMessages(msgD.messages);
       setHasMore(msgD.hasMore);
     } catch (e) {
@@ -269,10 +284,12 @@ export default function ChatPage() {
       if (message.sender?.id === meId) {
         setMessages((prev) => {
           if (prev.some((m) => m.id === message.id)) return prev;
-          const cleaned = prev.filter(
+          const cleaned = [...prev];
+          const idx = cleaned.findIndex(
             (m) =>
-              !(m.pending && m.text === message.text && m.sender?.id === meId),
+              m.pending && m.text === message.text && m.sender?.id === meId,
           );
+          if (idx !== -1) cleaned.splice(idx, 1);
           return [...cleaned, message];
         });
       } else if (hasNewerRef.current) {
@@ -372,7 +389,7 @@ export default function ChatPage() {
     // حذف گفتگو (توسط طرف مقابل) → خروج از صفحه
     const onConvDeleted = ({ conversationId }) => {
       if (conversationId !== cid) return;
-      router.replace("/");
+      goBack();
     };
 
     socket.on("message:new", onNew);
@@ -429,11 +446,10 @@ export default function ChatPage() {
   /* ── ارسال / ویرایش ── */
   const doSend = async () => {
     const text = input.trim();
-    if (!text || sending) return;
+    if (!text) return;
 
     const isEdit = !!editing;
     setInput("");
-    setSending(true);
     setError("");
 
     clearTimeout(typingTimerRef.current);
@@ -477,7 +493,6 @@ export default function ChatPage() {
       setInput(text);
       setError(e.message);
     }
-    setSending(false);
   };
 
   /* ── ارسال عکس (بعد از کراپ + کپشن) ── */
@@ -502,7 +517,6 @@ export default function ChatPage() {
       createdAt: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, temp]);
-    setSending(true);
     try {
       const fd = new FormData();
       fd.append("image", blob, "photo.jpg");
@@ -525,7 +539,6 @@ export default function ChatPage() {
       setMessages((prev) => prev.filter((m) => m.id !== temp.id));
       setError(e.message);
     }
-    setSending(false);
   };
 
   /* ── پرش نرم به پیام ── */
@@ -541,7 +554,15 @@ export default function ChatPage() {
     setHighlightId(mid);
     setTimeout(() => setHighlightId(null), 1300);
   };
-
+  /* ── بازگشت با انیمیشن خروج (موبایل) ── */
+  const goBack = () => {
+    if (typeof window !== "undefined" && window.innerWidth >= 768) {
+      router.push("/");
+      return;
+    }
+    startExit();
+    setTimeout(() => router.push("/"), 260);
+  };
   const copyText = async (t) => {
     try {
       await navigator.clipboard.writeText(t);
@@ -579,7 +600,7 @@ export default function ChatPage() {
     setConfirmDeleteConv(false);
     try {
       await api.delete(`/api/conversations/${id}`);
-      router.replace("/");
+      goBack();
     } catch (e) {
       setError(e.message);
     }
@@ -589,7 +610,7 @@ export default function ChatPage() {
     setConfirmLeave(false);
     try {
       await api.post(`/api/groups/${id}/leave`);
-      router.replace("/");
+      goBack();
     } catch (e) {
       setError(e.message);
     }
@@ -742,6 +763,8 @@ export default function ChatPage() {
     return items;
   })();
 
+  const menuItemsRef = useRef([]);
+  if (menu) menuItemsRef.current = menuItems;
   /* ── آیتم‌های منوی چت ── */
   const chatMenuItems = [
     ...(conv?.isGroup
@@ -874,7 +897,7 @@ export default function ChatPage() {
       {/* ── هدر ── */}
       <header className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-gray-950 border-b border-gray-100 dark:border-gray-800 shrink-0">
         <button
-          onClick={() => router.push("/")}
+          onClick={goBack}
           className="md:hidden w-9 h-9 rounded-full flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-150"
           aria-label="بازگشت"
         >
@@ -960,32 +983,33 @@ export default function ChatPage() {
 
       {/* ── منوی چت ── */}
       {chatMenuOpen && (
-        <>
-          <div
-            className="fixed inset-0 z-40"
-            onClick={() => setChatMenuOpen(false)}
-          />
-          <div className="absolute top-14 left-4 z-50 w-60 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-2xl py-1.5 animate-fade-in-up">
-            {chatMenuItems.map((it) => (
-              <button
-                key={it.label}
-                onClick={() => {
-                  setChatMenuOpen(false);
-                  it.action();
-                }}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors duration-150 ${
-                  it.danger
-                    ? "text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
-                    : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
-                }`}
-              >
-                {it.icon}
-                {it.label}
-              </button>
-            ))}
-          </div>
-        </>
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setChatMenuOpen(false)}
+        />
       )}
+      <Dropdown
+        open={chatMenuOpen}
+        className="absolute top-14 left-4 z-50 w-60 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-2xl py-1.5"
+      >
+        {chatMenuItems.map((it) => (
+          <button
+            key={it.label}
+            onClick={() => {
+              setChatMenuOpen(false);
+              it.action();
+            }}
+            className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors duration-150 ${
+              it.danger
+                ? "text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
+                : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+            }`}
+          >
+            {it.icon}
+            {it.label}
+          </button>
+        ))}
+      </Dropdown>
 
       {/* ── جستجوی پیام‌ها ── */}
       {searchOpen && (
@@ -1113,21 +1137,20 @@ export default function ChatPage() {
           value={input}
           onChange={handleInputChange}
           onSend={doSend}
-          sending={sending}
           banner={banner}
           onImageFile={(file) => setCropSrc(URL.createObjectURL(file))}
         />
       </div>
 
       {/* ── منوی پیام ── */}
-      {menu && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setMenu(null)} />
-          <div
-            className="fixed z-50 w-[190px] rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-2xl py-1.5 animate-fade-in-up"
+      {menu &&
+        createPortal(
+          <Dropdown
+            open={!!menu}
+            className="fixed z-50 w-[190px] rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-2xl py-1.5"
             style={{ top: menu.y, left: menu.x }}
           >
-            {menuItems.map((it) => (
+            {menuItemsRef.current.map((it) => (
               <button
                 key={it.label}
                 onClick={() => {
@@ -1144,9 +1167,9 @@ export default function ChatPage() {
                 {it.label}
               </button>
             ))}
-          </div>
-        </>
-      )}
+          </Dropdown>,
+          document.body,
+        )}
 
       <ConfirmModal
         open={!!confirmDelete}
@@ -1201,7 +1224,7 @@ export default function ChatPage() {
         onClose={() => setShowGroupInfo(false)}
         conv={conv}
         meId={user.id}
-        onLeft={() => router.replace("/")}
+        onLeft={() => goBack()}
       />
 
       <ChatProfilePanel

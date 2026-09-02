@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { FiX, FiDownload } from "react-icons/fi";
 
 export default function Lightbox({ src, onClose }) {
@@ -12,7 +13,7 @@ export default function Lightbox({ src, onClose }) {
 
   if (!src) return null;
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-[70] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-fade-in-up"
       onClick={onClose}
@@ -41,6 +42,7 @@ export default function Lightbox({ src, onClose }) {
         onClick={(e) => e.stopPropagation()}
         className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
       />
-    </div>
+    </div>,
+    document.body,
   );
 }

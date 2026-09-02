@@ -105,11 +105,9 @@ export default function MessageBubble({
       {msg.pending ? (
         <FiClock size={11} />
       ) : (
-        <>
-          {isMine && <SeenTick seen={msg.seen} />}
-          {faTime(msg.createdAt)}
-        </>
+        isMine && <SeenTick seen={msg.seen} />
       )}
+      {faTime(msg.createdAt)}
     </>
   );
 
@@ -221,12 +219,17 @@ export default function MessageBubble({
           </div>
         )}
         {/* ساعت و تیک روی عکس (فقط وقتی کپشن ندارد) */}
-        {!hasCaption && !msg.pending && imgLoaded && (
+        {!hasCaption && imgLoaded && (
           <div
             onClick={(e) => e.stopPropagation()}
             className="absolute bottom-1.5 right-2 flex items-center gap-1 rounded-full bg-black/50 px-1.5 py-0.5 text-[10px] text-white backdrop-blur-[2px]"
           >
-            {isMine && <SeenTick seen={msg.seen} />}
+            {isMine &&
+              (msg.pending ? (
+                <FiClock size={11} />
+              ) : (
+                <SeenTick seen={msg.seen} />
+              ))}
             {faTime(msg.createdAt)}
           </div>
         )}

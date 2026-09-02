@@ -25,6 +25,8 @@ import { useAuth } from "@/context/AuthContext";
 import { useSocket } from "@/context/SocketContext";
 import { formatListTime } from "@/lib/format";
 import CreateGroupModal from "./CreateGroupModal";
+import Dropdown from "./Dropdown";
+import { setCachedChat, prefetchChat, invalidateChat } from "@/lib/chatCache";
 
 /* ── اجزای کوچک ── */
 
@@ -48,7 +50,7 @@ function EmptyState({ icon, title, sub }) {
   );
 }
 
-function ConversationItem({ conv, active, online, typing, onClick }) {
+function ConversationItem({ conv, active, online, typing, onClick, onHover }) {
   const p = conv.partner;
   const lm = conv.lastMessage;
 
@@ -65,6 +67,8 @@ function ConversationItem({ conv, active, online, typing, onClick }) {
   return (
     <button
       onClick={onClick}
+      onMouseEnter={onHover}
+      onTouchStart={onHover}
       className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-right transition-colors duration-150 ${
         active
           ? "bg-indigo-50 dark:bg-indigo-950/40"
@@ -266,6 +270,7 @@ export default function Sidebar() {
       } catch {}
     };
     const onNew = ({ conversationId, message }) => {
+      invalidateChat(conversationId);
       const isMine = message.sender?.id === meId;
       if (!isMine) notify(conversationId, message);
       const viewing = pathname === `/chat/${conversationId}`;
@@ -341,6 +346,7 @@ export default function Sidebar() {
 
     // پاک شدن تاریخچه
     const onCleared = ({ conversationId }) => {
+      invalidateChat(conversationId);
       setConvs((prev) =>
         prev.map((c) =>
           c.id === conversationId
@@ -352,6 +358,7 @@ export default function Sidebar() {
 
     // حذف گفتگو
     const onDeleted = ({ conversationId }) => {
+      invalidateChat(conversationId);
       setConvs((prev) => prev.filter((c) => c.id !== conversationId));
       if (pathname === `/chat/${conversationId}`) router.push("/");
     };
@@ -431,12 +438,13 @@ export default function Sidebar() {
     setStartingId(null);
   };
 
-  // باز کردن گفتگو: بج را همان لحظه محو کن (سرور هم تأیید می‌کند)
-  const openConversation = (convId) => {
+  // باز کردن گفتگو: کشِ لحظه‌ای برای هدر + صفر کردن بج
+  const openConversation = (conv) => {
     setConvs((prev) =>
-      prev.map((c) => (c.id === convId ? { ...c, unread: 0 } : c)),
+      prev.map((c) => (c.id === conv.id ? { ...c, unread: 0 } : c)),
     );
-    router.push(`/chat/${convId}`);
+    setCachedChat(conv.id, { conv });
+    router.push(`/chat/${conv.id}`);
   };
 
   const profileMenu = [
@@ -493,38 +501,39 @@ export default function Sidebar() {
 
       {/* ── منوی پروفایل ── */}
       {menuOpen && (
-        <>
-          <div
-            className="fixed inset-0 z-30"
-            onClick={() => setMenuOpen(false)}
-          />
-          <div className="absolute top-14 left-4 z-40 w-64 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-2xl py-2 animate-fade-in-up">
-            <div className="px-4 py-2.5 border-b border-gray-100 dark:border-gray-800 mb-1">
-              <p className="font-bold text-sm truncate">{user?.displayName}</p>
-              <p dir="ltr" className="text-xs text-gray-400 text-right mt-0.5">
-                @{user?.username}
-              </p>
-            </div>
-            {profileMenu.map((item) => (
-              <button
-                key={item.label}
-                onClick={() => {
-                  setMenuOpen(false);
-                  item.action();
-                }}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors duration-150 ${
-                  item.danger
-                    ? "text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
-                    : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
-                }`}
-              >
-                {item.icon}
-                {item.label}
-              </button>
-            ))}
-          </div>
-        </>
+        <div
+          className="fixed inset-0 z-30"
+          onClick={() => setMenuOpen(false)}
+        />
       )}
+      <Dropdown
+        open={menuOpen}
+        className="absolute top-14 left-4 z-40 w-64 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-2xl py-2"
+      >
+        <div className="px-4 py-2.5 border-b border-gray-100 dark:border-gray-800 mb-1">
+          <p className="font-bold text-sm truncate">{user?.displayName}</p>
+          <p dir="ltr" className="text-xs text-gray-400 text-right mt-0.5">
+            @{user?.username}
+          </p>
+        </div>
+        {profileMenu.map((item) => (
+          <button
+            key={item.label}
+            onClick={() => {
+              setMenuOpen(false);
+              item.action();
+            }}
+            className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors duration-150 ${
+              item.danger
+                ? "text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
+                : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+            }`}
+          >
+            {item.icon}
+            {item.label}
+          </button>
+        ))}
+      </Dropdown>
 
       {/* ── تب‌ها ── */}
       <div className="flex gap-1 mx-4 mt-3 rounded-xl bg-gray-100 dark:bg-gray-800 p-1">
@@ -591,7 +600,8 @@ export default function Sidebar() {
                 online={onlineIds.has(c.partner?.id)}
                 typing={!!typingMap[c.id]}
                 active={pathname === `/chat/${c.id}`}
-                onClick={() => openConversation(c.id)}
+                onClick={() => openConversation(c)}
+                onHover={() => prefetchChat(c.id)}
               />
             ))
           )
@@ -615,37 +625,32 @@ export default function Sidebar() {
         )}
       </div>
 
-      {/* ── دکمه شناور گفتگوی جدید ── */}
       {fabOpen && (
-        <>
-          <div
-            className="fixed inset-0 z-20"
-            onClick={() => setFabOpen(false)}
-          />
-          <div className="absolute bottom-24 left-5 z-30 w-52 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-2xl py-1.5 animate-fade-in-up">
-            <button
-              onClick={() => {
-                setFabOpen(false);
-                setSearchModal(true);
-              }}
-              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-150"
-            >
-              <FiMessageCircle size={18} />
-              گفتگوی جدید
-            </button>
-            <button
-              onClick={() => {
-                setFabOpen(false);
-                setGroupModal(true);
-              }}
-              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-150"
-            >
-              <FiUsers size={18} />
-              گروه جدید
-            </button>
-          </div>
-        </>
+        <div className="fixed inset-0 z-20" onClick={() => setFabOpen(false)} />
       )}
+      <Dropdown
+        open={fabOpen}
+        className="absolute bottom-24 left-5 z-30 w-52 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-2xl py-1.5"
+      >
+        <button
+          onClick={() => {
+            setFabOpen(false);
+            setSearchModal(true);
+          }}
+          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-150"
+        >
+          <FiMessageCircle size={18} /> گفتگوی جدید
+        </button>
+        <button
+          onClick={() => {
+            setFabOpen(false);
+            setGroupModal(true);
+          }}
+          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-150"
+        >
+          <FiUsers size={18} /> گروه جدید
+        </button>
+      </Dropdown>
       <button
         onClick={() => setFabOpen((v) => !v)}
         className="absolute bottom-5 left-5 z-20 w-14 h-14 rounded-2xl bg-indigo-600 text-white shadow-lg flex items-center justify-center transition-all duration-150 hover:bg-indigo-700 active:scale-95"

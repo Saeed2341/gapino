@@ -1,7 +1,13 @@
 "use client";
 
 import { useRef } from "react";
-import { FiSend, FiX, FiCornerUpLeft, FiEdit2, FiImage } from "react-icons/fi";
+import {
+  FiSend,
+  FiX,
+  FiCornerUpLeft,
+  FiEdit2,
+  FiPaperclip,
+} from "react-icons/fi";
 
 export default function ChatInput({
   value,
@@ -37,7 +43,7 @@ export default function ChatInput({
 
   // ارسال با حفظ فوکوس: کیبورد موبایل بسته نشود
   const handleSendClick = () => {
-    ref.current?.focus(); // همگام و داخل رویداد کاربر → کیبورد باز می‌ماند
+    ref.current?.focus();
     onSend();
   };
 
@@ -74,45 +80,49 @@ export default function ChatInput({
         </div>
       )}
 
-      <div className="flex items-end gap-2 p-3">
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          hidden
-          onChange={onFile}
-        />
+      <div className="flex items-center gap-2 p-3">
+        {/* ── ارسال: سمت راست ── */}
         <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          disabled={sending}
-          className="w-11 h-11 shrink-0 rounded-full flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-150 disabled:opacity-40"
-          aria-label="ارسال عکس"
-        >
-          <FiImage size={20} />
-        </button>
-        <textarea
-          ref={ref}
-          rows={1}
-          value={value}
-          onChange={(e) => {
-            onChange(e.target.value);
-            grow();
-          }}
-          onKeyDown={handleKeyDown}
-          placeholder="پیام خود را بنویسید..."
-          className="flex-1 resize-none rounded-2xl bg-gray-100 dark:bg-gray-800 px-4 py-2.5 text-sm text-gray-800 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 max-h-[120px] transition duration-150"
-        />
-        <button
-          onPointerDown={(e) => e.preventDefault()} // ← جلوگیری از قاپیدن فوکوس توسط دکمه
-          onMouseDown={(e) => e.preventDefault()} // ← پشتیبانی مرورگرهای قدیمی
+          onPointerDown={(e) => e.preventDefault()}
+          onMouseDown={(e) => e.preventDefault()}
           onClick={handleSendClick}
-          disabled={sending || !value.trim()}
-          className="w-11 h-11 shrink-0 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-md transition-colors duration-150 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-40"
+          disabled={!value.trim()}
+          className="w-12 h-12  shrink-0 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-md transition-colors duration-150 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-40"
           aria-label="ارسال"
         >
-          <FiSend size={18} className="-scale-x-100" />
+          <FiSend size={20} className="-scale-x-100" />
         </button>
+
+        {/* ── ورودی با سنجاق داخل آن ── */}
+        <div className="relative flex w-full">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={onFile}
+          />
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            className="absolute bottom-2 left-1.5 z-10 w-9 h-9 rounded-full flex items-center justify-center text-gray-400 hover:text-indigo-500 hover:bg-gray-200/70 dark:hover:bg-gray-700 transition-colors duration-150"
+            aria-label="پیوست عکس"
+          >
+            <FiPaperclip size={19} />
+          </button>
+          <textarea
+            ref={ref}
+            rows={1}
+            value={value}
+            onChange={(e) => {
+              onChange(e.target.value);
+              grow();
+            }}
+            onKeyDown={handleKeyDown}
+            placeholder="پیام خود را بنویسید..."
+            className="w-full resize-none rounded-3xl bg-gray-100 dark:bg-gray-800 py-4 pr-4 pl-12 text-sm text-gray-800 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 max-h-[120px] transition duration-150"
+          />
+        </div>
       </div>
     </div>
   );
